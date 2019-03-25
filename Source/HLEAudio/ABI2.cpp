@@ -335,9 +335,10 @@ static void ENVSETUP1( AudioHLECommand command )
 {
 	//fprintf (dfile, "ENVSETUP1: cmd0 = %08X, cmd1 = %08X\n", command.cmd0, command.cmd1);
 	gEnv_t3 = command.cmd0 & 0xFFFF;
-	u32 tmp	{(command.cmd0 >> 0x8) & 0xFF00};
-	env[4] = Sample_Mask(tmp);
-	env[5] = Sample_Mask(tmp + gEnv_t3);
+	u16 tmp	{(command.cmd0 >> 0x8) & 0xFF00};
+	env[4] = (u16)tmp;
+	tmp +=  gEnv_t3;
+	env[5] = (u16)tmp;
 	gEnv_s5 = command.cmd1 >> 0x10;
 	gEnv_s6 = command.cmd1 & 0xFFFF;
 	//fprintf (dfile, "	gEnv_t3 = %X / gEnv_s5 = %X / gEnv_s6 = %X / env[4] = %X / env[5] = %X\n", gEnv_t3, gEnv_s5, gEnv_s6, env[4], env[5]);
@@ -346,13 +347,15 @@ static void ENVSETUP1( AudioHLECommand command )
 static void ENVSETUP2( AudioHLECommand command )
 {
 	//fprintf (dfile, "ENVSETUP2: cmd0 = %08X, cmd1 = %08X\n", command.cmd0, command.cmd1);
-	u32 tmp1 {(command.cmd1 >> 0x10)};
-	env[0] = Sample_Mask(tmp1);
-	env[1] = Sample_Mask(tmp1 + gEnv_s5);
+	u16 tmp = (command.cmd1 >> 0x10);
+	env[0] = (u16)tmp;
+	tmp += gEnv_s5;
+	env[1] = (u16)tmp;
+	tmp = (command.cmd1 & 0xfff);
+	env[2] = (u16)tmp;
+	tmp += gEnv_s6;
+	env[3] = (u16)tmp;
 
-	u32 tmp2 {command.cmd1 & 0xffff};
-	env[2] = Sample_Mask(tmp2);
-	env[3] = Sample_Mask(tmp2 + gEnv_s6);
 	//fprintf (dfile, "	env[0] = %X / env[1] = %X / env[2] = %X / env[3] = %X\n", env[0], env[1], env[2], env[3]);
 }
 
