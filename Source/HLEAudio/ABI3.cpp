@@ -224,7 +224,7 @@ static void CLEARBUFF3( AudioHLECommand command )
 {
 	u16 addr = (u16)(command.cmd0 &  0xffff);
 	u16 count = (u16)(command.cmd1 & 0xffff);
-	memset(gAudioHLEState.Buffer+addr+0x4f0, 0, count);
+	memset(gAudioHLEState.Buffer + addr + 0x4f0, 0, count);
 }
 
 static void MIXER3( AudioHLECommand command )

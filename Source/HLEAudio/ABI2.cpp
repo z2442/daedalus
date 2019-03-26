@@ -276,7 +276,8 @@ static void CLEARBUFF2( AudioHLECommand command )
 	u16 addr( command.Abi2ClearBuffer.Address );
 	u16 count( command.Abi2ClearBuffer.Count );
 
-	gAudioHLEState.ClearBuffer( addr, count );
+if (count > 0)
+		gAudioHLEState.ClearBuffer( addr, count );
 }
 
 static void LOADBUFF2( AudioHLECommand command )
@@ -380,6 +381,7 @@ static void ENVMIXER2( AudioHLECommand command )
 	s32 count {(s32)(command.cmd0 >> 8) & 0xff};
 
 	u32 adder {};
+
 	if (!isMKABI)
 	{
 		gEnv_s5 *= 2; gEnv_s6 *= 2; gEnv_t3 *= 2;
@@ -451,15 +453,12 @@ static void ENVMIXER2( AudioHLECommand command )
 		bufft6 += adder; bufft7 += adder;
 		buffs0 += adder; buffs1 += adder;
 		buffs3 += adder; count  -= adder;
-		env[0] = Sample_Mask(env[0] + gEnv_s5);
-		env[1] = Sample_Mask(env[1] + gEnv_s5);
-		env[2] = Sample_Mask(env[2] + gEnv_s6);
-		env[3] = Sample_Mask(env[3] + gEnv_s6);
-		env[4] = Sample_Mask(env[4] + gEnv_t3);
-		env[5] = Sample_Mask(env[5] + gEnv_t3);
+		env[0] += gEnv_s5; env[1] += gEnv_s5;
+		env[2] += gEnv_s6; env[3] += gEnv_s6;
+		env[4] += gEnv_t3; env[5] += gEnv_t3;
 	}
 }
-
+// OK 26/03/19 - Wally
 static void DUPLICATE2( AudioHLECommand command )
 {
 	u32 Count {(command.cmd0 >> 16) & 0xff};
@@ -468,11 +467,11 @@ static void DUPLICATE2( AudioHLECommand command )
 
 	u16 buff[64] {};
 
-	memcpy(buff,gAudioHLEState.Buffer+In,128);
+	memcpy(buff, gAudioHLEState.Buffer +In, 128);
 
 	while(Count)
 	{
-		memcpy(gAudioHLEState.Buffer+Out,buff,128);
+		memcpy(gAudioHLEState.Buffer + Out, buff, 128);
 		Out+=128;
 		Count--;
 	}
@@ -504,38 +503,42 @@ static void INTERLEAVE2( AudioHLECommand command )  // Needs accuracy verificati
 	}
 }
 
-// XXXX Doesn't seem to do anything!
+// Readded 26/03/19 - Looks correct
+// XXX Saturate should probably be replaced with Azi's function for consistency
 static void ADDMIXER( AudioHLECommand command )
 {
-	#ifdef DAEDALUS_DEBUG_CONSOLE
-	DAEDALUS_ERROR( "ADDMIXER - broken?" );
-	#endif
-	/*u32 Count     = (command.cmd0 >> 12) & 0x00ff0;
+
+	u32 Count     = (command.cmd0 >> 12) & 0x00ff0;
 	u32 InBuffer  = (command.cmd1 >> 16);
 	u32 OutBuffer = command.cmd1 & 0xffff;
 
 	s16 *inp  = (s16 *)(gAudioHLEState.Buffer + InBuffer);
 	s16 *outp = (s16 *)(gAudioHLEState.Buffer + OutBuffer);
+	s32 temp;
 	for (u32 cntr = 0; cntr < Count; cntr+=2)
 	{
-		//s32 temp = Saturate<s16>( *outp + *inp );
-		// *outp = temp;		// Added this - correct??
+
+	s32 temp = Saturate<s16>( *outp + *inp );
+		 *outp = temp;
 		outp++;	inp++;
-	}*/
+	}
 }
 
+// XXX Looks Correct 26/03/19
+// Again with saturate
 static void HILOGAIN( AudioHLECommand command )
 {
-	u32 count {command.cmd0 & 0xffff};
-	s32 hi  {(s16)((command.cmd0 >> 4) & 0xf000)};
-	u32 lo  {(command.cmd0 >> 20) & 0xf};
-	u32 out {(command.cmd1 >> 16) & 0xffff};
+	u16 count {command.cmd0 & 0xffff};
+	u16 out {(command.cmd1 >> 16) & 0xffff};
+	s16 hi  {(s16)((command.cmd0 >> 4) & 0xf000)};
+	u16 lo  {(command.cmd0 >> 20) & 0xf};
+
 	s16 *src = (s16 *)(gAudioHLEState.Buffer+out);
 
 	while( count )
 	{
-		s32 val = *src;
-		s32 tmp = ((val * hi) >> 16) + (u32)(val * lo);
+		s32 val = (s32)*src;
+		s32 tmp = ((val * (s32)hi) >> 16) + (u32)(val * lo);
 		*src++ = Saturate<s16>( tmp );
 		count -= 2;
 	}
