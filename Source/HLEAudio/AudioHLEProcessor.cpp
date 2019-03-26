@@ -34,6 +34,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "Math/MathUtil.h"
 #include "Utility/FastMemcpy.h"
 
+
+short hleMixerWorkArea[256];
+u8 BufferSpace[0x10000];
+
 inline s32		FixedPointMulFull16( s32 a, s32 b )
 {
 	return s32( ( (s64)a * (s64)b ) >> 16 );
@@ -47,6 +51,36 @@ inline s32		FixedPointMul16( s32 a, s32 b )
 s32	FixedPointMul15( s16 left, s16 right )
 {
 	return ( left * right + 0x4000) >> 15;
+}
+
+s16* LoadBufferSpace(u16 offset)
+{
+	return (s16 *)(BufferSpace + offset);
+}
+
+s16 LoadMixer16(int offset)
+{
+	return *(s16 *)(hleMixerWorkArea + offset);
+}
+
+s32 LoadMixer32(int offset)
+{
+	return *(s32 *)(hleMixerWorkArea + offset);
+}
+
+void SaveMixer16(int offset, s16 value)
+{
+	*(s16 *)(hleMixerWorkArea + offset) = value;
+}
+
+void SaveMixer32(int offset, s32 value)
+{
+	*(s32 *)(hleMixerWorkArea + offset) = value;
+}
+
+s16 GetVec(s16 vec, u16 envValue, s16 v2Value)
+{
+	return (s16)(((s32)vec  * (u32)envValue) >> 0x10) ^ v2Value;
 }
 
 AudioHLEState gAudioHLEState;
@@ -217,38 +251,33 @@ void	AudioHLEState::EnvMixer( u8 flags, u32 address )
 			//		out[MES(ptr)] = )
 }
 
-	/*LAcc = LAdderEnd;
-	RAcc = RAdderEnd;*/
+// Continue work from here --
 
-/*
 i1 = inp[MES(ptr)];
-out[MES(ptr)] = pack_signed(out[MES(ptr)] + MultQ15((s16)i1, (s16)MainR));
-aux1[MES(ptr)] = pack_signed(aux1[MES(ptr)] + MultQ15((s16)i1, (s16)MainL));
+out[MES(ptr)] = pack_signed(out[MES(ptr)] + FixedPointMul15((s16)i1, (s16)MainR));
+aux1[MES(ptr)] = pack_signed(aux1[MES(ptr)] + FixedPointMul15((s16)i1, (s16)MainL));
 if (AuxIncRate) {
 	//a2=((s64)(((s64)a2*0xfffe)+((s64)i1*AuxR*2)+0x8000)>>16);
 	//a3=((s64)(((s64)a3*0xfffe)+((s64)i1*AuxL*2)+0x8000)>>16);
 
-	aux2[MES(ptr)] = pack_signed(aux2[MES(ptr)] + MultQ15((s16)i1, (s16)AuxR));
-	aux3[MES(ptr)] = pack_signed(aux3[MES(ptr)] + MultQ15((s16)i1, (s16)AuxL));
+	aux2[MES(ptr)] = pack_signed(aux2[MES(ptr)] + FixedPointMul15((s16)i1, (s16)AuxR));
+	aux3[MES(ptr)] = pack_signed(aux3[MES(ptr)] + FixedPointMul15((s16)i1, (s16)AuxL));
 }
 ptr++;
 }
-}
-*/
 
-	*(s16 *)(buff +  0) = Wet; // 0-1
-	*(s16 *)(buff +  2) = Dry; // 2-3
-	*(s32 *)(buff +  4) = LTrg; // 4-5
-	*(s32 *)(buff +  6) = RTrg; // 6-7
-	*(s32 *)(buff +  8) = LRamp; // 8-9 (MixerWorkArea is a 16bit pointer)
-	*(s32 *)(buff + 10) = RRamp; // 10-11
-	*(s32 *)(buff + 12) = LAdderEnd; // 12-13
-	*(s32 *)(buff + 14) = RAdderEnd; // 14-15
-	*(s32 *)(buff + 16) = LAdderStart; // 12-13
-	*(s32 *)(buff + 18) = RAdderStart; // 14-15
+SaveMixer16(0, Wet); // 0-1
+SaveMixer16(2, Dry); // 2-3
+SaveMixer32(4, LTrg); // 4-5
+SaveMixer32(6, RTrg); // 6-7
+SaveMixer32(8, LRamp); // 8-9 (hleMixerWorkArea is a 16bit pointer)
+SaveMixer32(10, RRamp); // 10-11
+SaveMixer32(12, LAdderEnd); // 12-13
+SaveMixer32(14, RAdderEnd); // 14-15
+SaveMixer32(16, LAdderStart); // 12-13
+SaveMixer32(18, RAdderStart); // 14-15
+memcpy(rdram + address, (u8 *)hleMixerWorkArea, 80);
 }
-}
-
 void	AudioHLEState::Resample( u8 flags, u32 pitch, u32 address )
 {
 	#ifdef DAEDALUS_ENABLE_ASSERTS
