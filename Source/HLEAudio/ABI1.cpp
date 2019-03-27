@@ -81,15 +81,6 @@ void CLEARBUFF( AudioHLECommand command )
 
 //FILE *dfile = fopen ("d:\\envmix.txt", "wt");
 
-static void ENVMIXER( AudioHLECommand command )
-{
-	//static int envmixcnt = 0;
-	u8	flags( command.Abi1EnvMixer.Flags );
-	u32 address( command.Abi1EnvMixer.Address );// + gAudioHLEState.Segments[(command.cmd1>>24)&0xf];
-
-	gAudioHLEState.EnvMixer( flags, address );
-}
-
 static void RESAMPLE( AudioHLECommand command )
 {
 	u8 flags(command.Abi1Resample.Flags);
@@ -97,53 +88,6 @@ static void RESAMPLE( AudioHLECommand command )
 	u32 address(command.Abi1Resample.Address);// + gAudioHLEState.Segments[(command.cmd1>>24)&0xf];
 
 	gAudioHLEState.Resample( flags, pitch, address );
-}
-
-static void SETVOL( AudioHLECommand command )
-{
-// Might be better to unpack these depending on the flags...
-	u8 flags {(u8)((command.cmd0 >> 16) & 0xff)};
-	s16 vol {(s16)(command.cmd0 & 0xffff)};
-//	u16 voltgt =(u16)((command.cmd1 >> 16)&0xffff);
-	u16 volrate = (u16)((command.cmd1 & 0xffff));
-
-	if (flags & A_AUX)
-	{
-		gAudioHLEState.EnvDry = vol;				// m_MainVol
-		gAudioHLEState.EnvWet = (s16)volrate;		// m_AuxVol
-	}
-	else if(flags & A_VOL)
-	{
-		// Set the Source(start) Volumes
-		if(flags & A_LEFT)
-		{
-			gAudioHLEState.VolLeft = vol;
-		}
-		else
-		{
-			// A_RIGHT
-			gAudioHLEState.VolRight = vol;
-		}
-	}
-	else
-	{
-		// Set the Ramping values Target, Ramp
-		if(flags & A_LEFT)
-		{
-			gAudioHLEState.VolTrgLeft  = (s16)(command.cmd0 & 0xffff);		// m_LeftVol
-			gAudioHLEState.VolRampLeft = command.cmd1;
-		}
-		else
-		{
-			// A_RIGHT
-			gAudioHLEState.VolTrgRight  = (s16)(command.cmd0 & 0xffff);		// m_RightVol
-			gAudioHLEState.VolRampRight = command.cmd1;
-		}
-	}
-}
-
-static void UNKNOWN( AudioHLECommand command )
-{
 }
 
 static void SETLOOP( AudioHLECommand command )
@@ -178,6 +122,9 @@ static void SAVEBUFF( AudioHLECommand command )
 	gAudioHLEState.SaveBuffer( addr );
 }
 
+static void UNKNOWN( AudioHLECommand command )
+{
+}
 // Should work
 /*
 static void SEGMENT( AudioHLECommand command )
