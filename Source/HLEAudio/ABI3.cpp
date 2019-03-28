@@ -47,13 +47,6 @@ static void SPNOOP( AudioHLECommand command )
 }
 
 
-static void CLEARBUFF3( AudioHLECommand command )
-{
-	u16 addr = (u16)(command.cmd0 &  0xffff);
-	u16 count = (u16)(command.cmd1 & 0xffff);
-	memset(gAudioHLEState.Buffer + addr + 0x4f0, 0, count);
-}
-
 static void MIXER3( AudioHLECommand command )
 {
 	// Needs accuracy verification...
@@ -65,26 +58,9 @@ static void MIXER3( AudioHLECommand command )
 	gAudioHLEState.Mixer( dmemout, dmemin, gain, 0x170 );		// NB - did mult gain by 2 above, then shifted by 16 inside mixer.
 }
 
-static void LOADBUFF3( AudioHLECommand command )
-{
-	u32 v0 {};
-	u32 cnt {(((command.cmd0 >> 0xC)+3)&0xFFC)};
-	v0 = (command.cmd1 & 0xfffffc);
-	u32 src {(command.cmd0&0xffc)+0x4f0};
-	memcpy (gAudioHLEState.Buffer+src, rdram+v0, cnt);
 
-}
 
-static void SAVEBUFF3( AudioHLECommand command )
-{
-	u32 v0 {};
-	u32 cnt {(((command.cmd0 >> 0xC)+3)&0xFFC)};
-	v0 = (command.cmd1 & 0xfffffc);
-	u32 src {(command.cmd0&0xffc)+0x4f0};
 
-	memcpy (rdram+v0, gAudioHLEState.Buffer+src, cnt);
-
-}
 
 // Loads an ADPCM table - Works 100% Now 03-13-01
 static void LOADADPCM3( AudioHLECommand command )
@@ -95,22 +71,9 @@ static void LOADADPCM3( AudioHLECommand command )
 	gAudioHLEState.LoadADPCM( address, count );
 }
 
-// Needs accuracy verification...
-static void DMEMMOVE3( AudioHLECommand command )
-{
-	u16 src( command.Abi3DmemMove.Src );
-	u16 dst( command.Abi3DmemMove.Dst );
-	u16 count( command.Abi3DmemMove.Count );
 
-	gAudioHLEState.DmemMove( dst + 0x4f0, src + 0x4f0, count );
-}
 
-static void SETLOOP3( AudioHLECommand command )
-{
-	u32	loopval( command.Abi3SetLoop.LoopVal );// + gAudioHLEState.Segments[(command.cmd1>>24)&0xf];
 
-	gAudioHLEState.SetLoop( loopval );
-}
 
 // Verified to be 100% Accurate...
 static void ADPCM3( AudioHLECommand command )

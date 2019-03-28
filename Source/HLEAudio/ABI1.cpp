@@ -71,13 +71,6 @@ static void SPNOOP( AudioHLECommand command )
 	//DBGConsole_Msg( 0, "AudioHLE: Unknown/Unimplemented Audio Command %i in ABI 1", command.cmd );
 }
 
-void CLEARBUFF( AudioHLECommand command )
-{
-	u16 addr( command.Abi1ClearBuffer.Address );
-	u16 count( command.Abi1ClearBuffer.Count );
-
-	gAudioHLEState.ClearBuffer( addr, count );
-}
 
 //FILE *dfile = fopen ("d:\\envmix.txt", "wt");
 
@@ -90,12 +83,6 @@ static void RESAMPLE( AudioHLECommand command )
 	gAudioHLEState.Resample( flags, pitch, address );
 }
 
-static void SETLOOP( AudioHLECommand command )
-{
-	u32	loopval( command.Abi1SetLoop.LoopVal );// + gAudioHLEState.Segments[(command.cmd1>>24)&0xf];
-
-	gAudioHLEState.SetLoop( loopval );
-}
 
 static void ADPCM( AudioHLECommand command ) // Work in progress! :)
 {
@@ -107,54 +94,14 @@ static void ADPCM( AudioHLECommand command ) // Work in progress! :)
 }
 
 // memcpy causes static... endianess issue :(
-static void LOADBUFF( AudioHLECommand command )
-{
-	u32 addr(command.Abi1LoadBuffer.Address );// + gAudioHLEState.Segments[(command.cmd1>>24)&0xf];
-
-	gAudioHLEState.LoadBuffer( addr );
-}
-
-// memcpy causes static... endianess issue :(
-static void SAVEBUFF( AudioHLECommand command )
-{
-	u32 addr(command.Abi1SaveBuffer.Address );// + gAudioHLEState.Segments[(command.cmd1>>24)&0xf];
-
-	gAudioHLEState.SaveBuffer( addr );
-}
 
 static void UNKNOWN( AudioHLECommand command )
 {
 }
-// Should work
-/*
-static void SEGMENT( AudioHLECommand command )
-{
-	u8	segment( command.Abi1SetSegment.Segment & 0xf );
-	u32	address( command.Abi1SetSegment.Address );
 
-	gAudioHLEState.SetSegment( segment, address );
-}
-*/
 // Should work ;-)
-static void SETBUFF( AudioHLECommand command )
-{
-	u8		flags( command.Abi1SetBuffer.Flags );
-	u16		in( command.Abi1SetBuffer.In );
-	u16		out( command.Abi1SetBuffer.Out );
-	u16		count( command.Abi1SetBuffer.Count );
 
-	gAudioHLEState.SetBuffer( flags, in, out, count );
-}
 
-// Doesn't sound just right?... will fix when HLE is ready - 03-11-01
-static void DMEMMOVE( AudioHLECommand command )
-{
-	u16 src( command.Abi1DmemMove.Src );
-	u16 dst( command.Abi1DmemMove.Dst );
-	u16 count( command.Abi1DmemMove.Count );
-
-	gAudioHLEState.DmemMove( dst, src, count );
-}
 
 // Loads an ADPCM table - Works 100% Now 03-13-01
 static void LOADADPCM( AudioHLECommand command )
