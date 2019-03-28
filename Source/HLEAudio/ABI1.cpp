@@ -84,14 +84,7 @@ static void RESAMPLE( AudioHLECommand command )
 }
 
 
-static void ADPCM( AudioHLECommand command ) // Work in progress! :)
-{
-	u8		flags( command.Abi1ADPCM.Flags );
-	//u16	gain( command.Abi1ADPCM.Gain );		// Not used?
-	u32		address( command.Abi1ADPCM.Address );// + gAudioHLEState.Segments[(command.cmd1>>24)&0xf];
 
-	gAudioHLEState.ADPCMDecode( flags, address );
-}
 
 // memcpy causes static... endianess issue :(
 
@@ -103,14 +96,7 @@ static void UNKNOWN( AudioHLECommand command )
 
 
 
-// Loads an ADPCM table - Works 100% Now 03-13-01
-static void LOADADPCM( AudioHLECommand command )
-{
-	u32		address(command.Abi1LoadADPCM.Address );// + gAudioHLEState.Segments[(command.cmd1>>24)&0xf];
-	u16		count( command.Abi1LoadADPCM.Count );
 
-	gAudioHLEState.LoadADPCM( address, count );
-}
 
 // Works... - 3-11-01
 static void INTERLEAVE( AudioHLECommand command )
