@@ -33,9 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "Math/MathUtil.h"
 #include "Utility/FastMemcpy.h"
-
-
-short hleMixerWorkArea[256];
+#include "AudioTypes.h"
 u8 BufferSpace[0x10000];
 
 inline s32		FixedPointMulFull16( s32 a, s32 b )
@@ -48,34 +46,13 @@ inline s32		FixedPointMul16( s32 a, s32 b )
 	return s32( ( a * b ) >> 16 );
 }
 
-s32	FixedPointMul15( s16 left, s16 right )
+inline s32		FixedPointMul15( s32 a, s32 b )
 {
-	return ( left * right + 0x4000) >> 15;
+	return s32( ( a * b ) >> 15 );
 }
-
 s16* LoadBufferSpace(u16 offset)
 {
 	return (s16 *)(BufferSpace + offset);
-}
-
-s16 LoadMixer16(int offset)
-{
-	return *(s16 *)(hleMixerWorkArea + offset);
-}
-
-s32 LoadMixer32(int offset)
-{
-	return *(s32 *)(hleMixerWorkArea + offset);
-}
-
-void SaveMixer16(int offset, s16 value)
-{
-	*(s16 *)(hleMixerWorkArea + offset) = value;
-}
-
-void SaveMixer32(int offset, s32 value)
-{
-	*(s32 *)(hleMixerWorkArea + offset) = value;
 }
 
 s16 GetVec(s16 vec, u16 envValue, s16 v2Value)
@@ -91,193 +68,6 @@ void	AudioHLEState::ClearBuffer( u16 addr, u16 count )
 	memset( Buffer+(addr & 0xfffc), 0, (count+3) & 0xfffc );
 }
 
-static inline s32 mixer_macc(s32* Acc, s32* AdderStart, s32* AdderEnd, s32 Ramp)
-{
-	s32 volume;
-
-#if 0
-	s64 product, product_shifted;
-	/*** TODO!  It looks like my C translation of Azimer's assembly code ... ***/
-	product = (s64)(*AdderEnd) * (s64)Ramp;
-	product_shifted = product >> 16;
-
-	volume = (*AdderEnd - *AdderStart) / 8;
-	*Acc = *AdderStart;
-	*AdderStart = *AdderEnd;
-	*AdderEnd = (s32)(product_shifted & 0xFFFFFFFFul);
-#else
-	/*** ... comes out to something not the same as the C code he commented. ***/
-	volume = (*AdderEnd - *AdderStart) >> 3;
-	*Acc = *AdderStart;
-	*AdderEnd   = (s32)((((s64)(*AdderEnd) * (s64)Ramp) >> 16) & 0xFFFFFFFF);
-	*AdderStart = (s32)((((s64)(*Acc)      * (s64)Ramp) >> 16) & 0xFFFFFFFF);
-#endif
-	return (volume);
-}
-
-
-void	AudioHLEState::EnvMixer( u8 flags, u32 address )
-{
-	//static
-	// ********* Make sure these conditions are met... ***********
-	/*if ((InBuffer | OutBuffer | AuxA | AuxC | AuxE | Count) & 0x3) {
-	MessageBox (NULL, "Unaligned EnvMixer... please report this to Azimer with the following information: RomTitle, Place in the rom it occurred, and any save state just before the error", "AudioHLE Error", MB_OK);
-	}*/
-	// ------------------------------------------------------------
-
-	s16 *inp {(gAudioHLEState.Buffer + gAudioHLEState.InBuffer)};
-	s16 *out {(gAudioHLEState.Buffer + gAudioHLEState.OutBuffer)};
-	s16 *aux1 {(gAudioHLEState.Buffer + gAudioHLEState.AuxA)};
-	s16 *aux2 {(gAudioHLEState.Buffer + gAudioHLEState.AuxC)};
-	s16 *aux3 {(gAudioHLEState.Buffer + gAudioHLEState.AuxE)};
-
-	s32 MainL {}, MainR {};
-	s32 AuxL {}, AuxR {};
-
-	s32 i1 {},o1 {},a1 {},a2 {},a3 {};
-	u16 AuxIncRate{1};
-	s16 zero[8] {};
-	memset(zero,0,16);
-	s32 LVol {}, RVol {};
-	s32 LAcc {}, RAcc {};
-	s32 LTrg {}, RTrg {};
-	s16 Wet {}, Dry {};
-	u32 ptr {};
-	s32 LRamp {}, RRamp {};
-	s32 LAdderStart{} , RAdderStart {}, LAdderEnd {}, RAdderEnd {};
-	s32 oMainR {}, oMainL {}, oAuxR {}, oAuxL {};
-
-	s16* buff {(s16*)(rdram+address)};
-
-	//envmixcnt++;
-
-	//fprintf (dfile, "\n----------------------------------------------------\n");
-	if (flags & A_INIT)
-	{
-		LVol = ((gAudioHLEState.VolLeft  * gAudioHLEState.VolRampLeft));
-		RVol = ((gAudioHLEState.VolRight * gAudioHLEState.VolRampRight));
-		Wet = gAudioHLEState.EnvWet;
-		Dry = gAudioHLEState.EnvDry; // Save Wet/Dry values
-		LTrg = (gAudioHLEState.VolTrgLeft << 16);
-		RTrg = (gAudioHLEState.VolTrgRight << 16); // Save Current Left/Right Targets
-		LAdderStart = gAudioHLEState.VolLeft  << 16;
-		RAdderStart = gAudioHLEState.VolRight << 16;
-		LAdderEnd = gAudioHLEState.VolLeft;
-		RAdderEnd = gAudioHLEState.VolRight;
-		RRamp = gAudioHLEState.VolRampRight;
-		LRamp = gAudioHLEState.VolRampLeft;
-	}
-	else
-	{
-		// Load LVol, RVol, LAcc, and RAcc (all 32bit)
-		// Load Wet, Dry, LTrg, RTrg
-		Wet			= *(s16 *)(gAudioHLEState.Buffer +  0); // 0-1
-		Dry			= *(s16 *)(gAudioHLEState.Buffer +  2); // 2-3
-		LTrg		= *(s32 *)(gAudioHLEState.Buffer +  4); // 4-5
-		RTrg		= *(s32 *)(gAudioHLEState.Buffer +  6); // 6-7
-		LRamp		= *(s32 *)(gAudioHLEState.Buffer +  8); // 8-9 (MixerWorkArea is a 16bit pointer)
-		RRamp		= *(s32 *)(gAudioHLEState.Buffer + 10); // 10-11
-		LAdderEnd	= *(s32 *)(gAudioHLEState.Buffer + 12); // 12-13
-		RAdderEnd	= *(s32 *)(gAudioHLEState.Buffer + 14); // 14-15
-		LAdderStart = *(s32 *)(gAudioHLEState.Buffer + 16); // 12-13
-		RAdderStart = *(s32 *)(gAudioHLEState.Buffer + 18); // 14-15
-	}
-
-	if(!(flags&A_AUX))
-	{
-		AuxIncRate = 0;
-		aux2 = aux3 = zero;
-	}
-
-	oMainL = FixedPointMul15(Dry, (LTrg >> 16));
-	oAuxL = FixedPointMul15(Wet, (LTrg >> 16));
-	oMainR = FixedPointMul15(Dry, (RTrg >> 16));
-	oAuxR = FixedPointMul15(Wet, (RTrg >> 16));
-
-	for (int y {}; y < Count; y += 0x10)
-	{
-		if (LAdderStart != LTrg)
-		{
-			LVol = mixer_macc(&LAcc, &LAdderStart, &LAdderEnd, LRamp);
-		}
-		else
-		{
-			LAcc = LTrg;
-			LVol = 0;
-		}
-
-		if (RAdderStart != RTrg)
-		{
-			RVol = mixer_macc(&RAcc, &RAdderStart, &RAdderEnd, RRamp);
-		}
-		else
-		{
-			RAcc = RTrg;
-			RVol = 0;
-		}
-
-		for (int x {}; x < 8; x++)
-		{
-
-			LAcc += LVol;
-
-				if ((LVol <= 0 && LAcc < LTrg) || (LVol > 0 && LAcc > LTrg))
-				{
-					LAcc = LTrg;
-					LAdderStart = LTrg;
-					MainL = oMainL;
-					AuxL = oAuxL;
-				}
-				else
-				{
-						MainL = FixedPointMul15(Dry, ((s32)LAcc >> 16));
-						AuxL = 	FixedPointMul15(Wet, ((s32)LAcc >> 16));
-
-						RAcc += RVol;
-				}
-				if ((RVol <= 0 && RAcc < RTrg) || (RVol > 0 && RAcc > RTrg)) //decrementing or incrementing beyond target
-				{
-					RAcc = RTrg;
-					RAdderStart = RTrg;
-					MainR = oMainR;
-					AuxR = oAuxR;
-				}
-				else
-				{
-					MainR = FixedPointMul15(Dry, ((s32)RAcc >> 16));
-					AuxR = FixedPointMul15(Wet, ((s32)RAcc >> 16));
-				}
-		//			i1 = inp(MES(ptr)];
-			//		out[MES(ptr)] = )
-}
-
-// Continue work from here --
-
-i1 = inp[MES(ptr)];
-out[MES(ptr)] = pack_signed(out[MES(ptr)] + FixedPointMul15((s16)i1, (s16)MainR));
-aux1[MES(ptr)] = pack_signed(aux1[MES(ptr)] + FixedPointMul15((s16)i1, (s16)MainL));
-if (AuxIncRate) {
-	//a2=((s64)(((s64)a2*0xfffe)+((s64)i1*AuxR*2)+0x8000)>>16);
-	//a3=((s64)(((s64)a3*0xfffe)+((s64)i1*AuxL*2)+0x8000)>>16);
-
-	aux2[MES(ptr)] = pack_signed(aux2[MES(ptr)] + FixedPointMul15((s16)i1, (s16)AuxR));
-	aux3[MES(ptr)] = pack_signed(aux3[MES(ptr)] + FixedPointMul15((s16)i1, (s16)AuxL));
-}
-ptr++;
-}
-
-SaveMixer16(0, Wet); // 0-1
-SaveMixer16(2, Dry); // 2-3
-SaveMixer32(4, LTrg); // 4-5
-SaveMixer32(6, RTrg); // 6-7
-SaveMixer32(8, LRamp); // 8-9 (hleMixerWorkArea is a 16bit pointer)
-SaveMixer32(10, RRamp); // 10-11
-SaveMixer32(12, LAdderEnd); // 12-13
-SaveMixer32(14, RAdderEnd); // 14-15
-SaveMixer32(16, LAdderStart); // 12-13
-SaveMixer32(18, RAdderStart); // 14-15
-memcpy(rdram + address, (u8 *)hleMixerWorkArea, 80);
-}
 void	AudioHLEState::Resample( u8 flags, u32 pitch, u32 address )
 {
 	#ifdef DAEDALUS_ENABLE_ASSERTS
